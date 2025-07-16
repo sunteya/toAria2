@@ -1,9 +1,9 @@
 {
     "name": "添加到aria2",
-    "version": "1.0.7",
+    "version": "1.1.0",
     "manifest_version": 3,
     "description": "把下载添加到aria2",
-    "homepage_url": "http://blog.ghostry.cn/",
+    "homepage_url": "https://github.com/sunteya/toAria2",
     "minimum_chrome_version": "88.0",
     "icons": {
         "16": "icon.png",

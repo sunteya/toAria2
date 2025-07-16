@@ -1,6 +1,17 @@
 添加到Aria2（toAria2）
 ======
-用Aria2接管chrome的下载。谷歌市场地址：https://chrome.google.com/webstore/detail/%E6%B7%BB%E5%8A%A0%E5%88%B0aria2/nimeojfecmndgolmlmjghjmbpdkhhogl?hl=zh-CN
+~~用Aria2接管chrome的下载。谷歌市场地址：https://chrome.google.com/webstore/detail/%E6%B7%BB%E5%8A%A0%E5%88%B0aria2/nimeojfecmndgolmlmjghjmbpdkhhogl?hl=zh-CN~~
+
+安装指南
+======
+由于此插件未在 Chrome 商店发布，请按照以下步骤安装：
+
+1. 下载或克隆此项目到本地
+2. 打开 Chrome 浏览器，在地址栏输入 `chrome://extensions/`
+3. 在右上角开启"开发者模式"（Developer mode）
+4. 点击"加载已解压的扩展程序"（Load unpacked）
+5. 选择项目中的 `src` 目录
+6. 插件安装完成，您可以在扩展程序列表中看到"添加到aria2"
 
 使用说明
 ======
