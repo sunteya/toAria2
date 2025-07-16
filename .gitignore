@@ -1,1 +1,7 @@
 /toAria2.sublime-workspace
+/.specstory/
+/.cursorindexingignore
+/build/
+/node_modules/
+/*.crx
+/*.pem

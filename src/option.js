@@ -1,13 +1,14 @@
 $(document).ready(function() {
-    var favorite = localStorage["path"];
-    var enabled = localStorage["enabled"];
-    if (favorite) {
-        $('#path').val(favorite);
-    }
-    favorite = localStorage["size"];
-    if (favorite) {
-        $('#size').val(favorite);
-    }
+    // 读取配置
+    chrome.storage.local.get(["path", "size", "enabled"], (result) => {
+        if (result.path) {
+            $('#path').val(result.path);
+        }
+        if (result.size) {
+            $('#size').val(result.size);
+        }
+    });
+
     $("#size").blur(function() {
         save_options('size');
     });
@@ -22,10 +23,13 @@ $(document).ready(function() {
             $('#' + name).focus();
             return false;
         } else {
-            localStorage[name] = this.tmp;
-            localStorage['enabled'] = 1;
-            showEnable();
-            show(name, "已保存");
+            const updateObj = {};
+            updateObj[name] = this.tmp;
+            updateObj['enabled'] = 1;
+            chrome.storage.local.set(updateObj, () => {
+                showEnable();
+                show(name, "已保存");
+            });
         }
     }
 
@@ -37,13 +41,15 @@ $(document).ready(function() {
     }
 
     function showEnable() {
-        enabled = localStorage["enabled"];
-        if (enabled == 1) {
-            chrome.browserAction.setBadgeText({ "text": 'en' });
-            chrome.browserAction.setBadgeBackgroundColor({ color: '#008800' });
-        } else {
-            chrome.browserAction.setBadgeText({ "text": 'dis' });
-            chrome.browserAction.setBadgeBackgroundColor({ color: '#880000' });
-        }
+        chrome.storage.local.get(["enabled"], (result) => {
+            const enabled = result.enabled === 1 || result.enabled === "1";
+            if (enabled) {
+                chrome.action.setBadgeText({ "text": 'en' });
+                chrome.action.setBadgeBackgroundColor({ color: '#008800' });
+            } else {
+                chrome.action.setBadgeText({ "text": 'dis' });
+                chrome.action.setBadgeBackgroundColor({ color: '#880000' });
+            }
+        });
     }
 });

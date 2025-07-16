@@ -1,112 +1,152 @@
-var enabled = localStorage["enabled"];
-var size = localStorage["size"] * 1024 * 1024;
-var path = localStorage["path"];
-var token = null;
+import { decode64, strAnsi2Unicode, Decryption } from './decode.js';
+
+// 全局配置变量 - 保持原来的逻辑结构
+let enabled = 0;
+let size = 0;
+let path = "";
+let token = null;
+
+// 初始化配置 - 在文件加载时读取
+function initConfig() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(["enabled", "size", "path"], (result) => {
+            enabled = result.enabled === 1 || result.enabled === "1" ? 1 : 0;
+            size = (result.size || 10) * 1024 * 1024;
+            path = result.path || "";
+            
+            // 处理 token
+            const reg = /\/\/token:([\w-]+)@[\w.-]+(:\d+)?\//;
+            if (reg.test(path)) {
+                const tokenResult = reg.exec(path);
+                token = tokenResult[1];
+                path = path.replace("token:" + token + "@", "");
+            } else {
+                token = null;
+            }
+            
+            showEnable();
+            resolve();
+        });
+    });
+}
 
 function changeEnable(tab) {
     if (enabled == 1) {
-        chrome.browserAction.setBadgeText({ "text": 'dis' });
-        chrome.browserAction.setBadgeBackgroundColor({ color: '#880000' });
-        localStorage['enabled'] = 0;
+        chrome.action.setBadgeText({ "text": 'dis' });
+        chrome.action.setBadgeBackgroundColor({ color: '#880000' });
+        enabled = 0;
+        chrome.storage.local.set({ enabled: 0 });
     } else {
-        chrome.browserAction.setBadgeText({ "text": 'en' });
-        chrome.browserAction.setBadgeBackgroundColor({ color: '#008800' });
-        localStorage['enabled'] = 1;
+        chrome.action.setBadgeText({ "text": 'en' });
+        chrome.action.setBadgeBackgroundColor({ color: '#008800' });
+        enabled = 1;
+        chrome.storage.local.set({ enabled: 1 });
     }
-    enabled = localStorage["enabled"];
 }
 
 function showEnable() {
-    enabled = localStorage["enabled"];
     if (enabled == 1) {
-        chrome.browserAction.setBadgeText({ "text": 'en' });
-        chrome.browserAction.setBadgeBackgroundColor({ color: '#008800' });
+        chrome.action.setBadgeText({ "text": 'en' });
+        chrome.action.setBadgeBackgroundColor({ color: '#008800' });
     } else {
-        chrome.browserAction.setBadgeText({ "text": 'dis' });
-        chrome.browserAction.setBadgeBackgroundColor({ color: '#880000' });
+        chrome.action.setBadgeText({ "text": 'dis' });
+        chrome.action.setBadgeBackgroundColor({ color: '#880000' });
     }
 }
 
-function add(down) {
+async function add(down) {
     //console.debug(down);
     if (checkconfig() === 0) {
         return 0;
     }
     if (enabled == 0) {
-        //var notification = new Notification("添加到aria2当前暂停", {body: "如需启用点击工具栏中图标"});
         return 0;
     }
     if (Math.abs(down.fileSize) > size) {
-        var ifpostback = send(down);
+        const ifpostback = await send(down);
         if (ifpostback == "base64_error") {
-            var notification = new Notification("成功！", { body: "添加任务至 aria2 出错！" });
+            chrome.notifications.create({
+                type: "basic",
+                iconUrl: "icon.png",
+                title: "失败！",
+                message: "添加任务至 aria2 出错！"
+            });
         } else {
             chrome.downloads.cancel(down.id, function(s) {});
-            var notification = new Notification("成功！", { body: "下载已送往aria2，请前往确认" });
+            chrome.notifications.create({
+                type: "basic",
+                iconUrl: "icon.png",
+                title: "成功！",
+                message: "下载已送往aria2，请前往确认"
+            });
         }
     }
 }
 
 function checkconfig() {
-    size = localStorage["size"] * 1024 * 1024;
-    var storedPath = localStorage["path"];
-    var reg = /\/\/token:([\w-]+)@[\w.-]+(:\d+)?\//;
-    if (reg.test(storedPath)) {
-        var result = reg.exec(storedPath);
-        token = result[1];
-        path = storedPath.replace("token:" + token + "@", "");
-    } else {
-        token = null;
-        path = storedPath;
-    }
-    enabled = localStorage["enabled"];
     if (!path || !size) {
-        var notification = new Notification("注意！", { body: "插件尚未配置！" });
+        chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon.png",
+            title: "注意！",
+            message: "插件尚未配置！"
+        });
         chrome.tabs.create({ "url": "options.html" }, function(s) {});
-        localStorage['enabled'] = 0;
-        showEnable();
+        chrome.storage.local.set({ enabled: 0 }, () => {
+            enabled = 0;
+            showEnable();
+        });
         return 0;
     } else {
         return 1;
     }
 }
 
-function send(down) {
-    var aria2_obj = combination(down);
-    return postaria2obj(aria2_obj);
+async function send(down) {
+    const aria2_obj = combination(down);
+    return await postaria2obj(aria2_obj);
 }
 
 function postaria2obj(addobj) {
-    var httppost = new XMLHttpRequest();
-    this.aria2jsonrpcpath = path;
-    httppost.open("POST", this.aria2jsonrpcpath + "?tm=" + (new Date()).getTime().toString(), true);
-    var ifregurl = aria2url_reg(this.aria2jsonrpcpath);
+    let url = path + "?tm=" + Date.now();
+    let headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    };
+    
+    const ifregurl = aria2url_reg(path);
     if (ifregurl) {
-        if (!window.btoa) {
-            return "base64_error";
-        } else {
-            httppost.setRequestHeader("Authorization", "Basic " + btoa(ifregurl));
-        }
+        headers["Authorization"] = "Basic " + btoa(ifregurl);
     }
-    httppost.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-    httppost.send(JSON.stringify(addobj));
-    return "ok";
-
+    
+    return fetch(url, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(addobj)
+    }).then(response => {
+        if (response.ok) {
+            return "ok";
+        } else {
+            return "base64_error";
+        }
+    }).catch(() => {
+        return "base64_error";
+    });
 }
 
 function aria2url_reg(url) {
     if (url.split("@")[0] == url) {
         return null;
     }
-    return url.split("@")[0].match("/^(http:\\/\\/\|https:\\/\\/)?(.*)\/")[2];
+    const match = url.split("@")[0].match(/^(http:\/\/|https:\/\/)?(.*)/);
+    return match ? match[2] : null;
 }
 
 function combination(down) {
-    var obj = { "header": "Referer: " + down.referrer };
+    const obj = { "header": "Referer: " + (down.referrer || "") };
     if (down.filename != '') {
         obj["out"] = decodeURIComponent(down.filename);
     }
-    var params = [
+    const params = [
         [down.finalUrl], obj
     ];
     if (!!token) {
@@ -115,36 +155,38 @@ function combination(down) {
     return [{
         "jsonrpc": "2.0",
         "method": "aria2.addUri",
-        "id": (new Date()).getTime().toString(),
+        "id": Date.now().toString(),
         "params": params
     }];
 }
 
-function rightadd(info, tab) {
+async function rightadd(info, tab) {
     if (checkconfig() === 0) {
         return 0;
     }
-    var down = { filename: '' },
-        downarr;
+    const down = { filename: '' };
     down.referrer = info.pageUrl;
-    var urlma = /^\s*(http:|https:|ftp:|magnet:|thunder:|flashget:|qqdl:\?)/;
-    var errorcode = 0;
-    var errnum = 0;
-    var len = 0;
+    const urlma = /^\s*(http:|https:|ftp:|magnet:|thunder:|flashget:|qqdl:\?)/;
+    let errorcode = 0;
+    let errnum = 0;
+    let len = 0;
+    let downarr = [];
+    
     if (info.selectionText) {
-        downarr = info.selectionText.match(/(http:|https:|ftp:|magnet:|thunder:|flashget:|qqdl:\?)\S+/g);
+        downarr = info.selectionText.match(/(http:|https:|ftp:|magnet:|thunder:|flashget:|qqdl:\?)\S+/g) || [];
         len = downarr.length;
     }
+    
     if (urlma.test(info.linkUrl)) {
         down.finalUrl = Decryption(info.linkUrl);
         len = 1;
-        if (send(down) === "base64_error") {
+        if (await send(down) === "base64_error") {
             errorcode = 1;
         }
     } else if (len >= 1) {
-        for (var j = 0; j < len; j++) {
+        for (let j = 0; j < len; j++) {
             down.finalUrl = Decryption(downarr[j]);
-            if (send(down) === "base64_error") {
+            if (await send(down) === "base64_error") {
                 errorcode = 2;
                 errnum++;
             }
@@ -153,18 +195,51 @@ function rightadd(info, tab) {
             errorcode = 1;
         }
     } else {
-        var notification = new Notification("失败！", { body: "未发现可以下载的链接地址！" });
+        chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon.png",
+            title: "失败！",
+            message: "未发现可以下载的链接地址！"
+        });
         return 0;
     }
+    
     if (errorcode == 1) {
-        var notification = new Notification("失败！", { body: "添加任务至 aria2 出错！" });
+        chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon.png",
+            title: "失败！",
+            message: "添加任务至 aria2 出错！"
+        });
     } else if (errorcode == 2) {
-        var notification = new Notification("失败！", { body: "添加" + len + "个任务至 aria2 中有" + errnum + "个出错！" });
+        chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon.png",
+            title: "失败！",
+            message: "添加" + len + "个任务至 aria2 中有" + errnum + "个出错！"
+        });
     } else {
-        var notification = new Notification("成功！", { body: len + "个下载已送往aria2，请前往确认" });
+        chrome.notifications.create({
+            type: "basic",
+            iconUrl: "icon.png",
+            title: "成功！",
+            message: len + "个下载已送往aria2，请前往确认"
+        });
     }
 }
-showEnable();
-chrome.downloads.onDeterminingFilename.addListener(add);
-chrome.contextMenus.create({ "title": "添加到Aria2", "contexts": ["selection", "link"], "onclick": rightadd });
-chrome.browserAction.onClicked.addListener(changeEnable);
+
+// 初始化配置，然后注册事件监听器
+initConfig().then(() => {
+    chrome.downloads.onDeterminingFilename.addListener(add);
+    chrome.contextMenus.create({
+        id: "addToAria2",
+        title: "添加到Aria2",
+        contexts: ["selection", "link"]
+    });
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+        if (info.menuItemId === "addToAria2") {
+            rightadd(info, tab);
+        }
+    });
+    chrome.action.onClicked.addListener(changeEnable);
+});

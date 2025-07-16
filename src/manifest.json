@@ -1,12 +1,11 @@
 {
     "name": "添加到aria2",
     "version": "1.0.7",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "description": "把下载添加到aria2",
     "homepage_url": "http://blog.ghostry.cn/",
-    "minimum_chrome_version": "26.0.1428",
-    "icons":
-    {
+    "minimum_chrome_version": "88.0",
+    "icons": {
         "16": "icon.png",
         "19": "icon.png",
         "32": "icon.png",
@@ -16,17 +15,19 @@
     "options_page": "options.html",
     "permissions": [
         "downloads",
-        "http://*/",
         "notifications",
-        "contextMenus"
+        "contextMenus",
+        "storage"
     ],
-    "browser_action":
-    {
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
+    "action": {
         "default_title": "暂停/启用"
     },
-    "background":
-    {
-        "scripts": ["decode.js", "add.js"],
-        "persistent": true
+    "background": {
+        "service_worker": "add.js",
+        "type": "module"
     }
 }
